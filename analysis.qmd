@@ -1,0 +1,93 @@
+---
+title: "touringplans"
+format: html
+---
+
+## Touring Plans
+
+```{r}
+#| label: setup
+# to install touringplans, run this in your console:
+# remotes::install_github("lucymcgowan/touringplans")
+library(touringplans)
+library(tidyverse)
+```
+
+Here is the code from our last live session:
+
+```{r}
+touringplans_2018 <- tibble(touringplans_2018)
+touringplans_2018 |> 
+  summarize(
+    wait_minutes_actual_avg_complete = sum(!is.na(wait_minutes_actual_avg)),
+    wait_minutes_posted_avg_missing = sum(is.na(wait_minutes_posted_avg))
+  )
+
+touringplans_2018_complete <- touringplans_2018 |> 
+  filter(!is.na(wait_minutes_actual_avg) & !is.na(wait_minutes_posted_avg))
+  # another way to do this:
+  # drop_na(wait_minutes_actual_avg, wait_minutes_posted_avg)
+
+touringplans_2018_complete |> 
+  count(attraction_name)
+
+touringplans_2018_complete |> 
+  group_by(attraction_name) |> 
+  summarise(
+    diff = mean(wait_minutes_actual_avg - wait_minutes_posted_avg),
+    n = n()
+  ) |> 
+  arrange(desc(diff))
+
+touringplans_2018_complete |> 
+    group_by(park_ticket_season) |> 
+    summarise(
+        diff = mean(wait_minutes_actual_avg - wait_minutes_posted_avg),
+        n = n(),
+        weather = mean(park_temperature_high, na.rm = TRUE)
+    ) |>
+  arrange(diff) 
+
+# which variables about the park are there?
+touringplans_2018_complete |> 
+  select(starts_with("park"))
+```
+
+Now let's visualize some of the data:
+
+```{r}
+diffs <- touringplans_2018_complete |> 
+  group_by(attraction_name) |> 
+  summarise(
+    diff = mean(wait_minutes_actual_avg - wait_minutes_posted_avg),
+    n = n()
+  ) |> 
+  arrange(diff) |> 
+  mutate(
+    attraction_name = fct_inorder(attraction_name),
+    diff_10 = abs(diff) > 10
+  )
+
+diffs |> 
+  ggplot(aes(diff, attraction_name, color = diff_10)) + 
+  geom_point() +
+  geom_segment(aes(xend = 0, yend = attraction_name)) + 
+  geom_vline(xintercept = 0, color = "grey70") + 
+  labs(
+    color = "More than\nten minutes\ndifferent",
+    y = NULL,
+    x = "average actual wait time - posted time (minutes)"
+  ) + 
+  theme_minimal()
+```
+
+```{r}
+touringplans_2018_complete |> 
+  filter(wait_hour == 9) |> 
+  pivot_longer(c(wait_minutes_actual_avg, wait_minutes_posted_avg), names_to = "posted_actual", values_to = "minutes") |> 
+  filter(minutes < 1000) |> 
+  ggplot(aes(minutes, fill = posted_actual)) + 
+  geom_density(color = NA) +
+  facet_wrap(~ attraction_name, scales = "free_x")
+```
+
